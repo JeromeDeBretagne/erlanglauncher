@@ -12,7 +12,7 @@ android {
     buildToolsVersion "36.0.0"
 
     defaultConfig {
-        minSdkVersion 19
+        minSdkVersion 21
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"
@@ -47,9 +47,9 @@ afterEvaluate {
 task setup() {
     doLast {
         def version = 1
-        setFilesInjniLibs("aarch64", "erlang_25.0.4_android21_arm64.zip", version)
-        setFilesInjniLibs("arm",     "erlang_25.0.4_androideabi19_arm.zip", version)
-        setFilesInjniLibs("x86_64",  "erlang_25.0.4_android21_x86_64.zip", version)
+        setFilesInjniLibs("aarch64", "erlang_28.3.1_android21_arm64.zip", version)
+        setFilesInjniLibs("arm",     "erlang_28.3.1_androideabi21_arm.zip", version)
+        setFilesInjniLibs("x86_64",  "erlang_28.3.1_android21_x86_64.zip", version)
     }
 }
 
