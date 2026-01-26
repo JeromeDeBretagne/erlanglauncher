@@ -36,6 +36,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -101,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
 
       listFiles();
       copyErlangCode();
-      launchErlangNode(); // The command is not launching Epmd
+      spawnErlang(); // The command is not launching Epmd
       listProcesses();
       JinterfaceTester task = new JinterfaceTester();
       task.execute();
@@ -113,51 +114,6 @@ public class MainActivity extends AppCompatActivity {
 
     public void listFiles() {
       doCommand("/system/bin/ls -al " + filesDir + "/erlang/erts-13.0.4/bin");
-    }
-
-    public void launchErlangNode() {
-      Log.d("Fragment", "launchErlangNode");
-
-      // The HOME environment variable must be set for the Erlang node to
-      // launch, otherwise the launch would fail with the following message:
-      //    'error:: erlexec: HOME must be set'
-      // with previous versions of the Erlang runtime. This was fixed in
-      // Erlang 23 as described here: https://bugs.erlang.org/browse/ERL-476
-      //
-      // Pass the ERL_ROOTDIR environment variable to set dynamically the
-      // absolute path of the Erlang Runtime which is configured in a
-      // different location for multiple users on Android. The change has
-      // been discussed here: https://github.com/erlang/otp/pull/2863
-      String[] envp = { "HOME=" + filesDir,
-                        "ERL_ROOTDIR=" + filesDir + "/erlang" };
-
-      // Launch the Erlang node locally
-      doCommand("erlang/bin/erl " +
-                // The '-sname node1@localhost' argument could be used instead
-                // or '-sname node1' otherwise. Using the 127.0.0.1 IP address
-                // for the host part guarantees that DNS lookup won't be used.
-                "-name node1@127.0.0.1 " +
-                // Remove the '-detached' argument to get the error messages
-                // from the Erlang node, if any, in the log.
-                "-detached " +
-                // The directory(ies) where to search for .beam module files,
-                // in this case in 'ebin'.
-                "-pa " + erlangBeamDir + " " +
-                // Use a distribution protocol based on Unix Domain Sockets
-                "-proto_dist erl_uds " +
-                // So no need to launch the Erlang Port Mapper Daemon (Epmd)
-                "-no_epmd " +
-                // The "cookie" shared among nodes
-                "-setcookie cookie " +
-                // The name of the Erlang module containing the default 'start'
-                // function to run.
-                "-run hello_jinterface",
-                // Pass the environment variables
-                envp,
-                // The working directory to use when launching the command
-                new File(filesDir + "/"),
-                // Don't wait for the command to finish
-                false);
     }
 
     public void listProcesses() {
@@ -215,6 +171,87 @@ public class MainActivity extends AppCompatActivity {
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
+    }
+
+    // Spawn the 'erl' command into a new thread so that it doesn't block
+    // the execution of the rest of the Java program
+    public void spawnErlang() {
+      new Thread(() -> {
+        try {
+
+          Log.d("Fragment", "spawnErlang");
+
+          // Use ProcessBuilder to merge stdout and stderr
+          ProcessBuilder pb = new ProcessBuilder(
+                   "erlang/bin/erl",
+                   // The '-sname node1@localhost' argument could be used instead
+                   // or '-sname node1' otherwise. Using the 127.0.0.1 IP address
+                   // for the host part guarantees that DNS lookup won't be used.
+                   "-name", "node1@127.0.0.1",
+                   // The directory(ies) where to search for .beam module files,
+                   // in this case in 'ebin'.
+                   "-pa", erlangBeamDir,
+                   // Use a distribution protocol based on Unix Domain Sockets
+                   "-proto_dist", "erl_uds",
+                   // So no need to launch the Erlang Port Mapper Daemon (Epmd)
+                   "-no_epmd",
+                   // The "cookie" shared among nodes
+                   "-setcookie", "cookie",
+                   // The name of the Erlang module containing the default 'start'
+                   // function to run.
+                   "-run", "hello_jinterface"
+          );
+          pb.redirectErrorStream(true);
+
+          // Pass the environment variables
+          Map<String, String> env = pb.environment();
+          // The HOME environment variable must be set for the Erlang node to
+          // launch, otherwise the launch would fail with the following message:
+          //    'error:: erlexec: HOME must be set'
+          // with previous versions of the Erlang runtime. This was fixed in
+          // Erlang 23 as described here: https://bugs.erlang.org/browse/ERL-476
+          //
+          // Recent versions of the 'erl' script in newer Erlang releases have a
+          // built-in mechanism to dynamically find the 'ROOT_DIR', introduced in
+          // commit: https://github.com/erlang/otp/commit/5ea1d07
+          // However, this implementation doesn't work with the very specific way
+          // of bundling and extracting the Erlang runtime and executables into
+          // the native lib/<abi> directory on Android. Indeed, the usual Erlang
+          // runtime file stucture is then fully recreated using symlinks which
+          // is simply not expected and so not supported by 'dyn_erl --realpath'.
+          //
+          // Pass the ERL_ROOTDIR environment variable instead to set dynamically
+          // the absolute path of the Erlang Runtime which is configured in a
+          // different location for multiple users on Android. The change has
+          // been discussed here: https://github.com/erlang/otp/pull/2863
+          env.put("HOME", filesDir);
+          env.put("ERL_ROOTDIR", filesDir + "/erlang");
+
+          // The working directory to use when launching the command
+          pb.directory(new File(filesDir + "/"));
+
+          Process process = pb.start();
+
+          // Open a reader for both stdout and stderr outputs
+          BufferedReader reader = new BufferedReader(
+                  new InputStreamReader(process.getInputStream()));
+
+          // Read line-by-line and send the output to Logcat
+          String line;
+          while ((line = reader.readLine()) != null) {
+            Log.d("Fragment", line);
+          }
+          reader.close();
+
+          // Waits for the command to finish.
+          process.waitFor();
+
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      }).start();
     }
 
     protected void createErlangRuntimeIntoDataDir() {
