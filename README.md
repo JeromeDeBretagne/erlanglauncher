@@ -12,13 +12,16 @@ cover the simple case of local communications between several nodes running
 within the same Android application, or when having several Erlang-based
 Android applications running totally independently on the same host.
 
-This project is proposing another approach, taking advantage of the Android
+This project is chosing another approach, taking advantage of the Android
 application sandboxing model which isolates application data from each other,
-to provide a custom node registration and lookup based on Unix Domain Sockets
-created in the app-specific data storage (instead of the usual TCP-based epmd).
+to provide a custom node registration, lookup and communication protocol based
+on Unix Domain Sockets created within the app-specific data storage (instead
+of the usual Erlang distribution protocol carried over TCP).
 
-This custom implementation requires some modifications to the Erlang Jinterface
-Java package, which was designed originally to make mandatory requests to epmd.
+Originally Jinterface was designed to always rely on epmd. The use of a
+custom epmd-less distribution protocol requires an updated version of the
+Erlang Jinterface Java package, from Erlang/OTP 25 or later, as it was
+improved to offer more flexibility in that release.
 
 Run the Android app on a device, you will see a ping/pong in the logs.
 That's the successful connection without epmd. Huzzah!
