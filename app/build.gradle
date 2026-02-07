@@ -18,6 +18,14 @@ android {
         versionName "1.0"
         ndk.abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
     }
+
+    packagingOptions {
+        jniLibs {
+            // This forces the installer to extract the .so files to the filesystem
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
